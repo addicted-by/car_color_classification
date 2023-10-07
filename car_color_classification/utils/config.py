@@ -11,6 +11,10 @@ except ImportError:
 
 import sys
 
+from car_color_classification.logger import setup_custom_logger
+
+
+logger = setup_custom_logger(__name__)
 
 sys.path.append("../")
 
@@ -41,6 +45,6 @@ def load_config(
         default_config = load(open(default_arguments, "r"), Loader=Loader)
         final_config = merge_dicts(default_config, custom_config)
 
-    print("Config file: ")
+    logger.info("Config file: ")
     print_config(final_config)
     return final_config

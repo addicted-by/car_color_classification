@@ -7,8 +7,8 @@ trainer:
   n_epochs: 3
   optimizer: "Adam"
   lr_scheduler: "cosine"
-  max_lr: !!float 5e-3
-  min_lr: !!float 1e-7
+  max_lr: !!float 5e-2
+  min_lr: !!float 1e-4
 
   ckpt_load: ~
   ckpt_dir: "./ckpts"

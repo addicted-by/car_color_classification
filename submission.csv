@@ -34,8 +34,8 @@ Id,Preds,Target
 355.jpg,White,White
 357.jpg,White,White
 359.jpg,White,White
-362.jpg,White,White
-365.jpg,White,White
+362.jpg,Grey,White
+365.jpg,Cyan,White
 371.jpg,White,White
 376.jpg,White,White
 380.jpg,White,White
@@ -44,7 +44,7 @@ Id,Preds,Target
 443.jpg,Green,Green
 470.jpg,Green,Green
 477.jpg,Green,Green
-480.jpg,Cyan,Green
+480.jpg,Green,Green
 487.jpg,Green,Green
 489.jpg,Green,Green
 490.jpg,Green,Green
@@ -113,7 +113,7 @@ Id,Preds,Target
 1167.jpg,Cyan,Cyan
 1184.jpg,Cyan,Cyan
 1188.jpg,Cyan,Cyan
-1191.jpg,Cyan,Cyan
+1191.jpg,White,Cyan
 1193.jpg,Cyan,Cyan
 1200.jpg,Cyan,Cyan
 1201.jpg,Cyan,Cyan
@@ -176,7 +176,7 @@ Id,Preds,Target
 1819.jpg,Grey,Grey
 1826.jpg,Grey,Grey
 1834.jpg,Orange,Orange
-1836.jpg,Orange,Orange
+1836.jpg,Red,Orange
 1852.jpg,Orange,Orange
 1859.jpg,Orange,Orange
 1860.jpg,Orange,Orange
@@ -185,7 +185,7 @@ Id,Preds,Target
 1884.jpg,Orange,Orange
 1885.jpg,Orange,Orange
 1889.jpg,Orange,Orange
-1903.jpg,Brown,Orange
+1903.jpg,Orange,Orange
 1907.jpg,Orange,Orange
 1910.jpg,Orange,Orange
 1925.jpg,Orange,Orange
@@ -197,9 +197,9 @@ Id,Preds,Target
 2034.jpg,Orange,Orange
 2039.jpg,Orange,Orange
 2041.jpg,Orange,Orange
-2049.jpg,Yellow,Orange
+2049.jpg,Orange,Orange
 2059.jpg,Orange,Orange
-2065.jpg,Brown,Orange
+2065.jpg,Orange,Orange
 2079.jpg,Orange,Orange
 2081.jpg,Orange,Orange
 2087.jpg,Orange,Orange
@@ -208,7 +208,7 @@ Id,Preds,Target
 2096.jpg,Orange,Orange
 2102.jpg,Orange,Orange
 2115.jpg,Orange,Orange
-2126.jpg,Brown,Orange
+2126.jpg,Orange,Orange
 2130.jpg,Orange,Orange
 2164.jpg,Orange,Orange
 2170.jpg,Orange,Orange
@@ -218,7 +218,7 @@ Id,Preds,Target
 2214.jpg,Orange,Orange
 2217.jpg,Orange,Orange
 2218.jpg,Orange,Orange
-2221.jpg,Yellow,Orange
+2221.jpg,Orange,Orange
 2223.jpg,Orange,Orange
 2245.jpg,Orange,Orange
 2247.jpg,Orange,Orange
@@ -288,7 +288,7 @@ Id,Preds,Target
 2981.jpg,Red,Red
 2993.jpg,Red,Red
 3005.jpg,Red,Red
-3006.jpg,Brown,Red
+3006.jpg,Red,Red
 3032.jpg,Red,Red
 3033.jpg,Red,Red
 3039.jpg,Red,Red
@@ -316,7 +316,7 @@ Id,Preds,Target
 3259.jpg,Blue,Blue
 3261.jpg,Blue,Blue
 3267.jpg,Blue,Blue
-3269.jpg,Violet,Blue
+3269.jpg,Blue,Blue
 3283.jpg,Blue,Blue
 3284.jpg,Blue,Blue
 3293.jpg,Blue,Blue

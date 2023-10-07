@@ -5,15 +5,19 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
+from natsort import natsort_keygen
+from sklearn.metrics import accuracy_score, f1_score
+from torch.utils.data import DataLoader
+
+from car_color_classification.logger import setup_custom_logger
 from car_color_classification.models import get_model_by_name
 from car_color_classification.utils.args import parse_arguments
 from car_color_classification.utils.config import load_config
 from car_color_classification.utils.datasets import CarsDataset
 from car_color_classification.utils.load_data import load_data
-from natsort import natsort_keygen
-from sklearn.metrics import accuracy_score, f1_score
-from torch.utils.data import DataLoader
 
+
+logger = setup_custom_logger(__name__)
 
 sys.path.append("./car_color_classification")
 
@@ -63,8 +67,8 @@ if __name__ == "__main__":
 
     result.sort_values(by="Id", key=natsort_keygen(), inplace=True)
 
-    print("Submission file is saved to submission.csv")
+    logger.info("Submission file is saved to submission.csv")
     result.to_csv("submission.csv", index=False)
 
-    print("F1 score: ", f1_score(preds, targets, average="macro"))
-    print("Accuracy score: ", accuracy_score(preds, targets))
+    logger.info(f"F1 score: {f1_score(preds, targets, average='macro')}")
+    logger.info(f"Accuracy score: {accuracy_score(preds, targets)}")

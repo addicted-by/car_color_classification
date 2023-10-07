@@ -1,3 +1,4 @@
+import math
 import os
 import sys
 from collections import defaultdict
@@ -6,18 +7,57 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from sklearn.model_selection import train_test_split
+from torch.optim import lr_scheduler
+from torch.optim.lr_scheduler import LambdaLR
+from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
+
+from car_color_classification.logger import setup_custom_logger
 from car_color_classification.models import get_model_by_name
 from car_color_classification.utils.args import parse_arguments
 from car_color_classification.utils.config import load_config
 from car_color_classification.utils.datasets import CarsDataset
 from car_color_classification.utils.load_data import load_data
-from sklearn.model_selection import train_test_split
-from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
-from tqdm import tqdm
+
+
+logger = setup_custom_logger(__name__)
 
 
 sys.path.append("./car_color_classification")
+
+
+def cosine_scheduler(optimizer, initial_lr, min_lr, num_epochs, num_cycles=0.5):
+    """
+    Cosine learning rate scheduler.
+
+    Args:
+        optimizer: The optimizer for which to adjust the learning rate.
+        initial_lr (float): The initial learning rate.
+        num_epochs (int): The total number of training epochs.
+        num_cycles (float): The number of cosine cycles within the training.
+
+    Returns:
+        LambdaLR: The PyTorch learning rate scheduler.
+    """
+
+    def lr_lambda(epoch):
+        """
+        Calculate the learning rate multiplier at each epoch.
+
+        Args:
+            epoch (int): The current epoch.
+
+        Returns:
+            float: The learning rate multiplier for the current epoch.
+        """
+        cycle = math.floor(1 + epoch / float(num_epochs) * num_cycles)
+        x = abs(epoch / float(num_epochs) * num_cycles - cycle + 0.5)
+        lr_multiplier = max(0.5 * (math.cos(math.pi * x) + 1), min_lr / initial_lr)
+        return lr_multiplier
+
+    return LambdaLR(optimizer, lr_lambda)
 
 
 class Trainer:
@@ -46,12 +86,36 @@ class Trainer:
 
     def _init_optimizer(self):
         self.optimizer = torch.optim.AdamW(
-            list(self.model.layer3.parameters()) + list(self.model.layer4.parameters()),
-            lr=1e-4,
+            [
+                {"params": self.model.layer3.parameters(), "lr": 1e-3},
+                {"params": self.model.layer4.parameters(), "lr": 1e-3},
+            ],
+            lr=1e-2,
         )
-        self.scheduler = torch.optim.lr_scheduler.StepLR(
-            self.optimizer, step_size=3, gamma=0.1
-        )
+
+        if self.trainer_config["lr_scheduler"] == "cosine":
+            self.scheduler = cosine_scheduler(
+                self.optimizer,
+                initial_lr=self.trainer_config["max_lr"],
+                num_epochs=self.trainer_config["n_epochs"],
+                num_cycles=0.5,
+            )
+
+        elif self.trainer_config["lr_scheduler"] == "cyclic":
+            self.scheduler = lr_scheduler.CyclicLR(
+                self.optimizer,
+                base_lr=self.trainer_config["min_lr"],
+                max_lr=self.trainer_config["max_lr"],
+                step_size_up=5,
+                mode="exp_range",
+                gamma=0.85,
+                last_epoch=-1,
+            )
+
+        elif self.trainer_config["lr_scheduler"] == "step":
+            self.scheduler = lr_scheduler.StepLR(self.optimizer, step_size=3, gamma=0.1)
+        else:
+            raise ValueError("Scheduler is not implemented yet.")
 
     def _init_criterion(self):
         self.criterion = torch.nn.CrossEntropyLoss()
@@ -59,6 +123,7 @@ class Trainer:
     def _init_tb_logger(self):
         experiment = datetime.now().strftime("%m%d%Y.%H%M%S")
         logdir = f"./tb_logs/{self.trainer_config['model_name']}/{experiment}"
+        logger.info(f"Tensorboard dir: {logdir}")
         self.tb_logger = SummaryWriter(log_dir=logdir)
 
     def fit(self, train_loader, val_loader):
@@ -72,10 +137,10 @@ class Trainer:
                 self._validate(val_loader, epoch)
 
             if (epoch + 1) % self.trainer_config["save_interval"] == 0:
-                print("SAVING MODEL")
                 ckpt_name = (
                     f"model_{self.trainer_config['model_name']}" + f"_{exp}_{epoch+1}.pth"
                 )
+                logger.info(f"SAVING MODEL EPOCH {epoch+1} --> {ckpt_name}")
                 torch.save(
                     self.model.state_dict(),
                     os.path.join(path2save, ckpt_name),
@@ -97,7 +162,7 @@ class Trainer:
 
             loss.backward()
             self.optimizer.step()
-
+            self.scheduler.step()
             batch_size = data.size(0)
             running_loss += loss.item() * batch_size
             running_corrects += (preds.argmax(dim=1) == target).sum().item()
@@ -105,14 +170,18 @@ class Trainer:
 
             if batch_idx % self.trainer_config["log_interval"] == 0:
                 accuracy = 100 * running_corrects / processed_data
-                self.history["lr"].append(self.optimizer.param_groups[0]["lr"])
+                self.history["lr"].append(self.optimizer.param_groups[-1]["lr"])
                 self.history["train_loss"].append(loss.item())
                 self.history["train_accuracy"].append(accuracy)
                 self.tb_logger.add_scalar("Loss/train", loss.item(), self.iterations)
                 self.tb_logger.add_scalar("Accuracy/train", accuracy, self.iterations)
                 self.tb_logger.add_scalar("lr", self.history["lr"][-1], self.iterations)
 
-                pbar.set_postfix(loss=running_loss / processed_data, accuracy=accuracy)
+                pbar.set_postfix(
+                    loss=running_loss / processed_data,
+                    accuracy=accuracy,
+                    lr=self.optimizer.param_groups[0]["lr"],
+                )
 
             self.iterations += 1
 

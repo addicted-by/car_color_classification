@@ -31,7 +31,7 @@ line-length = 90
 target-version = ["py39"]
 
 [tool.isort]
-src_paths = ["mnist_example"]
+src_paths = ["car_color_classification"]
 profile = "black"
 line_length = 90
 lines_after_imports = 2

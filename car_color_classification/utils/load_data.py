@@ -4,6 +4,11 @@ from pathlib import Path
 
 import gdown
 
+from car_color_classification.logger import setup_custom_logger
+
+
+logger = setup_custom_logger(__name__)
+
 
 TRAIN_URL = "https://drive.google.com/uc?id=17DWaO2v_bWZ6cP_4e2IqVVmc7nGx2DCL"
 VAL_URL = "https://drive.google.com/uc?id=1z5R22UfZqIrGy0UnhPI3ZErOQO9wwhpf"
@@ -20,14 +25,15 @@ def load_data():
     if not os.path.exists(DATA_PATH) or not len(os.listdir(DATA_PATH)):
         for dataset, url in datasets.items():
             dataset_path = os.path.join(DATA_PATH, f"{dataset}.tar.gz")
-            print("Creating dir data")
+            logger.info("Creating dir data")
             os.makedirs(DATA_PATH, exist_ok=True)
-            print("Loading data...")
+            logger.info("Loading data...")
             gdown.download(url, output=dataset_path)
-            print("Untar files...")
+            logger.info("Untar files...")
             cmd = f"tar xzf {dataset_path} -C {DATA_PATH}"
             subprocess.run(cmd, shell=True)
 
-    print(f"Check {DATA_PATH}")
+    logger.info("Data had already been collected.")
+    logger.info(f"Check --> {DATA_PATH}")
 
     return (os.path.join(DATA_PATH, key) for key in datasets)
