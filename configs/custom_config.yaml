@@ -1,0 +1,3 @@
+trainer:
+  model_name: "resnet50"
+  pretrained: True

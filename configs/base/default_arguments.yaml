@@ -1,0 +1,27 @@
+trainer:
+  model_name: "resnet101"
+  pretrained: True
+
+  train_freeze_layers: []
+  freeze_layers: False
+  n_epochs: 3
+  optimizer: "Adam"
+  lr_scheduler: "cosine"
+  max_lr: !!float 5e-3
+  min_lr: !!float 1e-7
+
+  ckpt_load: ~
+  ckpt_dir: "./ckpts"
+  batch_size: 16
+  save_interval: 1
+
+  augmentations: False
+  log_interval: 1
+
+validation_intermediate:
+  validate: True
+  interval: 1
+
+validation_final:
+  validate: False
+  testset: "val"
