@@ -28,7 +28,7 @@ logger = setup_custom_logger(__name__)
 sys.path.append("./car_color_classification")
 
 
-def cosine_scheduler(optimizer, initial_lr, min_lr, num_epochs, num_cycles=0.5):
+def cosine_scheduler(optimizer, initial_lr, num_epochs, num_cycles=0.5):
     """
     Cosine learning rate scheduler.
 
@@ -54,7 +54,7 @@ def cosine_scheduler(optimizer, initial_lr, min_lr, num_epochs, num_cycles=0.5):
         """
         cycle = math.floor(1 + epoch / float(num_epochs) * num_cycles)
         x = abs(epoch / float(num_epochs) * num_cycles - cycle + 0.5)
-        lr_multiplier = max(0.5 * (math.cos(math.pi * x) + 1), min_lr / initial_lr)
+        lr_multiplier = 0.5 * (math.cos(math.pi * x) + 1)
         return lr_multiplier
 
     return LambdaLR(optimizer, lr_lambda)
@@ -86,11 +86,8 @@ class Trainer:
 
     def _init_optimizer(self):
         self.optimizer = torch.optim.AdamW(
-            [
-                {"params": self.model.layer3.parameters(), "lr": 1e-3},
-                {"params": self.model.layer4.parameters(), "lr": 1e-3},
-            ],
-            lr=1e-2,
+            list(self.model.layer3.parameters()) + list(self.model.layer4.parameters()),
+            lr=1e-4,
         )
 
         if self.trainer_config["lr_scheduler"] == "cosine":
@@ -98,7 +95,7 @@ class Trainer:
                 self.optimizer,
                 initial_lr=self.trainer_config["max_lr"],
                 num_epochs=self.trainer_config["n_epochs"],
-                num_cycles=0.5,
+                num_cycles=50,
             )
 
         elif self.trainer_config["lr_scheduler"] == "cyclic":
@@ -111,9 +108,10 @@ class Trainer:
                 gamma=0.85,
                 last_epoch=-1,
             )
-
         elif self.trainer_config["lr_scheduler"] == "step":
             self.scheduler = lr_scheduler.StepLR(self.optimizer, step_size=3, gamma=0.1)
+        elif self.trainer_config["lr_scheduler"] == "no":
+            self.scheduler = None
         else:
             raise ValueError("Scheduler is not implemented yet.")
 
@@ -162,7 +160,7 @@ class Trainer:
 
             loss.backward()
             self.optimizer.step()
-            self.scheduler.step()
+            # self.scheduler.step()
             batch_size = data.size(0)
             running_loss += loss.item() * batch_size
             running_corrects += (preds.argmax(dim=1) == target).sum().item()
