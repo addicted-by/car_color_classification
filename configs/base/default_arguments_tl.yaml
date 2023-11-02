@@ -1,0 +1,55 @@
+model:
+  model_name: resnet101
+  pretrained: True
+  softmax: True
+  ckpt_load: ~
+  freeze_layers: ["layer1", "layer2"]
+
+data:
+  val_size: 0.25
+  dataloader_num_wokers: 8
+  batch_size: 16
+  n_classes: 11
+
+trainer:
+  lr_scheduler: ~
+  opt_cfg:
+    lr: 5e-5
+  weight_decay: 0.01
+  num_warmup_steps: 1
+  num_training_steps: 1000
+  grad_accum_steps: 1
+  accelerator: cuda
+  devices:
+    - 0
+  precision: 16-mixed
+  val_check_interval: 1.0
+  overfit_batches: 0
+  num_sanity_val_steps: 4
+  full_deterministic_mode: false
+  benchmark: false
+  gradient_clip_val: 10.0
+  profiler:
+  log_every_n_steps: 1
+  batch_size_finder: false
+  detect_anomaly: false
+
+artifacts:
+  experiment_name: base-experiment
+  checkpoint:
+    use: false
+    dirpath: checkpoints
+    filename: "{experiment_name}_{epoch:02d}_{val_loss:.4f}"
+    monitor:
+      - val_loss
+      - val_accuracy
+    save_top_k: 3
+    every_n_train_steps:
+    every_n_epochs: 1
+
+callbacks:
+  model_summary:
+    max_depth: 1
+  swa:
+    use: false
+    lrs: 1e-3

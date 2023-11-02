@@ -1,9 +1,11 @@
-trainer:
-  model_name: "resnet101"
+model:
+  model_name: resnet101
   pretrained: True
+  softmax: True
+  ckpt_load: ~
+  freeze_layers: ["layer1", "layer2"]
 
-  train_freeze_layers: []
-  freeze_layers: False
+trainer:
   n_epochs: 3
   optimizer: "Adam"
   lr_scheduler: "cosine"
@@ -22,6 +24,11 @@ validation_intermediate:
   validate: True
   interval: 1
 
-validation_final:
-  validate: False
-  testset: "val"
+# validation_final:
+#   validate: False
+#   testset: "val"
+
+mlflow:
+  exp_name: base
+  tracking_uri: http://127.0.0.1:5000
+  artifact_root: .logs/ml-flow

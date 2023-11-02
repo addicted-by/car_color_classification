@@ -1,26 +1,25 @@
-import os
+import sys
+from pathlib import Path
 from typing import Dict
 
-from yaml import dump, load
-
-
-try:
-    from yaml import CLoader as Loader
-except ImportError:
-    from yaml import Loader
-
-import sys
+from hydra import compose, initialize
+from omegaconf import OmegaConf
 
 from car_color_classification.logger import setup_custom_logger
+
+
+# from yaml import dump, load
+
+
+# try:
+#     from yaml import CLoader as Loader
+# except ImportError:
+#     from yaml import Loader
 
 
 logger = setup_custom_logger(__name__)
 
 sys.path.append("../")
-
-
-def print_config(config):
-    print(dump(config, default_flow_style=False))
 
 
 def merge_dicts(dict1, dict2):
@@ -32,19 +31,29 @@ def merge_dicts(dict1, dict2):
 
 
 def load_config(
-    path: str, default_arguments: str = "configs/base/default_arguments.yaml"
+    path: Path, default_arguments: str = "./configs/base/default_arguments.yaml"
 ) -> Dict:
-    assert os.path.exists(path), f"Bad specified path {path}"
-    custom_config = load(open(path, "r"), Loader=Loader)
-    final_config = custom_config
-    # Load default config
-    if default_arguments:
-        assert os.path.exists(
-            default_arguments
-        ), f"Can't find base config {default_arguments}"
-        default_config = load(open(default_arguments, "r"), Loader=Loader)
-        final_config = merge_dicts(default_config, custom_config)
+    print(path.parent)
+    print(path.stem)
+    with initialize(version_base=None, config_path=str(path.parent), job_name="test_app"):
+        cfg = compose(config_name=path.stem)
 
-    logger.info("Config file: ")
-    print_config(final_config)
-    return final_config
+    if default_arguments:
+        default_config = OmegaConf.load(default_arguments)
+        cfg = OmegaConf.merge(default_config, cfg)
+
+    print(OmegaConf.to_yaml(cfg))
+    return cfg
+
+
+if __name__ == "__main__":
+    load_config(
+        "../../configs/base/default_arguments.yaml",
+        "../../configs/base/default_arguments.yaml",
+    )
+    load_config(
+        "../../configs/custom_config.yaml", "../../configs/base/default_arguments.yaml"
+    )
+    load_config(
+        "../../configs/inference.yaml", "../../configs/base/default_arguments.yaml"
+    )

@@ -1,13 +1,20 @@
 import math
 import os
+import pickle
 import sys
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
 import fire
+import mlflow
 import numpy as np
+import pandas as pd
 import torch
+from hydra import compose, initialize
+from natsort import natsort_keygen
+from omegaconf import OmegaConf
+from sklearn.metrics import accuracy_score, f1_score
 from sklearn.model_selection import train_test_split
 from torch.optim import lr_scheduler
 from torch.optim.lr_scheduler import LambdaLR
@@ -16,8 +23,10 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from car_color_classification.logger import setup_custom_logger
-from car_color_classification.models import get_model_by_name
-from car_color_classification.utils.config import load_config
+
+# from car_color_classification.models import get_model_by_name
+from car_color_classification.models import CustomModel
+from car_color_classification.utils import get_git_commit_id
 from car_color_classification.utils.datasets import CarsDataset
 from car_color_classification.utils.load_data import load_data
 
@@ -80,13 +89,13 @@ class Trainer:
         pass
 
     def _init_model(self):
-        self.model = get_model_by_name(
-            self.trainer_config["model_name"], self.n_classes, self.config
+        self.model = CustomModel.get_model_by_name(
+            self.config.model.model_name, self.n_classes, self.config
         ).to(self.device)
 
     def _init_optimizer(self):
         self.optimizer = torch.optim.AdamW(
-            list(self.model.layer3.parameters()) + list(self.model.layer4.parameters()),
+            [param for param in self.model.parameters() if param.requires_grad],
             lr=1e-4,
         )
 
@@ -113,21 +122,24 @@ class Trainer:
         elif self.trainer_config["lr_scheduler"] == "no":
             self.scheduler = None
         else:
-            raise ValueError("Scheduler is not implemented yet.")
+            raise NotImplementedError("Scheduler is not implemented yet.")
 
     def _init_criterion(self):
         self.criterion = torch.nn.CrossEntropyLoss()
 
     def _init_tb_logger(self):
-        experiment = datetime.now().strftime("%m%d%Y.%H%M%S")
-        logdir = f"./tb_logs/{self.trainer_config['model_name']}/{experiment}"
+        self.exp = datetime.now().strftime("%m%d%Y.%H%M%S")
+        logdir = f"./tb_logs/{self.config.model.model_name}/{self.exp}"
         logger.info(f"Tensorboard dir: {logdir}")
         self.tb_logger = SummaryWriter(log_dir=logdir)
 
     def fit(self, train_loader, val_loader):
-        exp = datetime.now().strftime("%m%d%Y.%H%M%S")
-        path2save = f"./ckpts/{self.trainer_config['model_name']}/"
+        path2save = f"ckpts/{self.config.model.model_name}"
         os.makedirs(path2save, exist_ok=True)
+        for data, target in train_loader:
+            break
+
+        mlflow.models.infer_signature(data.numpy(), target.numpy())
 
         for epoch in range(self.trainer_config["n_epochs"]):
             self._train_epoch(train_loader, epoch)
@@ -136,13 +148,15 @@ class Trainer:
 
             if (epoch + 1) % self.trainer_config["save_interval"] == 0:
                 ckpt_name = (
-                    f"model_{self.trainer_config['model_name']}" + f"_{exp}_{epoch+1}.pth"
+                    f"model_{self.config.model.model_name}" + f"_{self.exp}_{epoch+1}.pth"
                 )
                 logger.info(f"SAVING MODEL EPOCH {epoch+1} --> {ckpt_name}")
                 torch.save(
                     self.model.state_dict(),
                     os.path.join(path2save, ckpt_name),
                 )
+
+        mlflow.pytorch.log_model(self.model, path2save)
 
     def _train_epoch(self, loader, epoch):
         self.model.train()
@@ -174,6 +188,9 @@ class Trainer:
                 self.tb_logger.add_scalar("Loss/train", loss.item(), self.iterations)
                 self.tb_logger.add_scalar("Accuracy/train", accuracy, self.iterations)
                 self.tb_logger.add_scalar("lr", self.history["lr"][-1], self.iterations)
+                mlflow.log_metric("train_loss", loss.item(), self.iterations)
+                mlflow.log_metric("train_accuracy", accuracy, self.iterations)
+                mlflow.log_metric("lr", self.history["lr"][-1], self.iterations)
 
                 pbar.set_postfix(
                     loss=running_loss / processed_data,
@@ -219,22 +236,38 @@ class Trainer:
         self.tb_logger.add_scalar(
             "Accuracy/val", self.history["val_accuracy"][-1], self.iterations
         )
+        mlflow.log_metric("val_loss", self.history["val_loss"][-1], self.iterations)
+        mlflow.log_metric(
+            "val_accuracy", self.history["val_accuracy"][-1], self.iterations
+        )
 
 
 def train(
-    cfg: Path, default_arguments: Path = Path("./configs/base/default_arguments.yaml")
+    cfg="./configs/base/default_arguments.yaml",
+    default_arguments: str = "./configs/base/default_arguments.yaml",
 ):
+    cfg = Path(cfg)
     TRAIN_DIR, TEST_DIR = load_data()
-    train_val_files = sorted(list(Path(TRAIN_DIR).rglob("*.jpg")))
-    # test_files = sorted(list(Path(TEST_DIR).rglob("*.jpg")))
+    with initialize(
+        version_base=None,
+        config_path=str(cfg.parent),
+        job_name="car_color_classification",
+    ):
+        config = compose(config_name=cfg.stem)
 
+    if default_arguments:
+        default_config = OmegaConf.load(default_arguments)
+        config = OmegaConf.merge(default_config, config)
+
+    train_val_files = sorted(list(Path(TRAIN_DIR).rglob("*.jpg")))
     train_val_labels = [path.parent.name for path in train_val_files]
+
     train_files, val_files = train_test_split(
         train_val_files, test_size=0.25, stratify=train_val_labels
     )
 
     n_classes = len(np.unique(train_val_labels))
-    config = load_config(cfg, default_arguments=default_arguments)
+
     trainer = Trainer(config=config, n_classes=n_classes)
 
     train_dataset = CarsDataset(train_files, mode="train")
@@ -247,9 +280,83 @@ def train(
         val_dataset, batch_size=config["trainer"]["batch_size"], shuffle=False
     )
 
-    trainer.fit(train_loader, val_loader)
+    logger.info(config.mlflow.get("tracking_uri"))
+    mlflow.set_tracking_uri(config.mlflow.get("tracking_uri", "http://127.0.0.1:5000"))
+    os.environ["MLFLOW_ARTIFACT_ROOT"] = config.mlflow.artifact_root
+    Path(config.mlflow.artifact_root).mkdir(parents=True, exist_ok=True)
+
+    exp_id = mlflow.set_experiment(f"training-{config.model.model_name}").experiment_id
+    with mlflow.start_run(experiment_id=exp_id, run_name=trainer.exp):
+        mlflow.log_params(config)
+        mlflow.log_param("commit id", get_git_commit_id())
+        trainer.fit(train_loader, val_loader)
+
+
+def predict(model, test_loader, device):
+    with torch.no_grad():
+        logits = []
+        for inputs in test_loader:
+            inputs = inputs.to(device)
+            model.eval()
+            outputs = model(inputs).cpu()
+            logits.append(outputs)
+
+    probs = torch.cat(logits).numpy()
+    return probs
+
+
+def infer(
+    cfg="./configs/inference.yaml", default="./configs/base/default_arguments.yaml"
+):
+    device = "cuda" if torch.cuda.is_available() else torch.device("cpu")
+
+    cfg = Path(cfg)
+    TRAIN_DIR, TEST_DIR = load_data()
+    with initialize(
+        version_base=None,
+        config_path=str(cfg.parent),
+        job_name="car_color_classification",
+    ):
+        config = compose(config_name=cfg.stem)
+
+    if default:
+        default_config = OmegaConf.load(default)
+        config = OmegaConf.merge(default_config, config)
+
+    with open("label_encoder.pkl", "rb") as le_encoder_file:
+        label_encoder = pickle.load(le_encoder_file)
+
+    test_files = sorted(list(Path(TEST_DIR).rglob("*.jpg")))
+    print(len(test_files))
+
+    n_classes = len(label_encoder.classes_)
+
+    test_dataset = CarsDataset(test_files, mode="test")
+    test_loader = DataLoader(
+        test_dataset, batch_size=config.trainer.batch_size, shuffle=False
+    )
+    model = CustomModel.get_model_by_name(
+        config.model.model_name, n_classes=n_classes, cfg=config
+    ).to(device)
+
+    probs = predict(model, test_loader, device)
+    preds = label_encoder.inverse_transform(np.argmax(probs, axis=1))
+    test_filenames = [path.name for path in test_dataset.files]
+    targets = [path.parent.name for path in test_dataset.files]
+    result = pd.DataFrame({"Id": test_filenames, "Preds": preds, "Target": targets})
+
+    result.sort_values(by="Id", key=natsort_keygen(), inplace=True)
+
+    logger.info("Submission file is saved to submission.csv")
+    result.to_csv("submission.csv", index=False)
+
+    logger.info(f"F1 score: {f1_score(preds, targets, average='macro')}")
+    logger.info(f"Accuracy score: {accuracy_score(preds, targets)}")
+
+
+def run_server():
+    pass
 
 
 if __name__ == "__main__":
-    # args = parse_arguments(default="./configs/base/default_arguments.yaml")
-    fire.Fire(train)
+    fire.Fire({"train": train, "infer": infer, "run_server": run_server})
