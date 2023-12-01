@@ -12,8 +12,8 @@ warnings.filterwarnings(action="ignore", category=UserWarning)
 
 
 def get_model_by_name(model_name: str, n_classes: int, config: Dict):
+    pretrained = config["trainer"]["pretrained"]
     if model_name == "resnet101":
-        pretrained = config["trainer"]["pretrained"]
         model = torchvision.models.resnet101(pretrained=pretrained)
 
         if config["trainer"]["freeze_layers"]:

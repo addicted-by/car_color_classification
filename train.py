@@ -5,6 +5,7 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
+import fire
 import numpy as np
 import torch
 from sklearn.model_selection import train_test_split
@@ -16,16 +17,15 @@ from tqdm import tqdm
 
 from car_color_classification.logger import setup_custom_logger
 from car_color_classification.models import get_model_by_name
-from car_color_classification.utils.args import parse_arguments
 from car_color_classification.utils.config import load_config
 from car_color_classification.utils.datasets import CarsDataset
 from car_color_classification.utils.load_data import load_data
 
 
-logger = setup_custom_logger(__name__)
-
-
 sys.path.append("./car_color_classification")
+
+
+logger = setup_custom_logger(__name__)
 
 
 def cosine_scheduler(optimizer, initial_lr, num_epochs, num_cycles=0.5):
@@ -221,12 +221,12 @@ class Trainer:
         )
 
 
-if __name__ == "__main__":
-    args = parse_arguments(default="./configs/base/default_arguments.yaml")
-
+def train(
+    cfg: Path, default_arguments: Path = Path("./configs/base/default_arguments.yaml")
+):
     TRAIN_DIR, TEST_DIR = load_data()
     train_val_files = sorted(list(Path(TRAIN_DIR).rglob("*.jpg")))
-    test_files = sorted(list(Path(TEST_DIR).rglob("*.jpg")))
+    # test_files = sorted(list(Path(TEST_DIR).rglob("*.jpg")))
 
     train_val_labels = [path.parent.name for path in train_val_files]
     train_files, val_files = train_test_split(
@@ -234,9 +234,7 @@ if __name__ == "__main__":
     )
 
     n_classes = len(np.unique(train_val_labels))
-    config = load_config(
-        args.config, default_arguments="./configs/base/default_arguments.yaml"
-    )
+    config = load_config(cfg, default_arguments=default_arguments)
     trainer = Trainer(config=config, n_classes=n_classes)
 
     train_dataset = CarsDataset(train_files, mode="train")
@@ -250,3 +248,8 @@ if __name__ == "__main__":
     )
 
     trainer.fit(train_loader, val_loader)
+
+
+if __name__ == "__main__":
+    # args = parse_arguments(default="./configs/base/default_arguments.yaml")
+    fire.Fire(train)
