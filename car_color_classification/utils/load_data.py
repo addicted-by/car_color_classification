@@ -32,7 +32,7 @@ def load_data():
     logger.info("Untar files")
     for name, dataset in datasets.items():
         if not (DATA_PATH / name).exists():
-            cmd = f"tar xzf {DATA_PATH / dataset} -C {DATA_PATH} | rm -f {DATA_PATH / dataset}"
+            cmd = f"tar xzf {DATA_PATH / dataset} -C {DATA_PATH}"  # | rm -f {DATA_PATH / dataset}"
             subprocess.run(cmd, shell=True)
     # DATA_PATH = Path("data")
     # if not os.path.exists(DATA_PATH) or not len(os.listdir(DATA_PATH)):
