@@ -1,3 +1,8 @@
 trainer:
+  n_epochs: 3
   model_name: "resnet50"
   pretrained: True
+
+  onnx:
+    save: True
+    path2save: "nvidia-triton/1"

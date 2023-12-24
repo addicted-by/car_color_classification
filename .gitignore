@@ -4,7 +4,7 @@ __pycache__/
 *$py.class
 *.pkl
 *.csv
-
+*.onnx
 ckpts/
 tb_logs/
 mlruns/

@@ -8,7 +8,7 @@ model:
 trainer:
   n_epochs: 3
   optimizer: "Adam"
-  lr_scheduler: "cosine"
+  lr_scheduler: ~ #"cosine"
   max_lr: !!float 5e-2
   min_lr: !!float 1e-4
 
@@ -19,6 +19,9 @@ trainer:
 
   augmentations: False
   log_interval: 1
+  onnx:
+    save: False
+    path2save: ~
 
 validation_intermediate:
   validate: True

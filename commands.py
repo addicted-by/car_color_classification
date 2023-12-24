@@ -98,31 +98,33 @@ class Trainer:
             [param for param in self.model.parameters() if param.requires_grad],
             lr=1e-4,
         )
+        if self.trainer_config.lr_scheduler:
+            if self.trainer_config["lr_scheduler"] == "cosine":
+                self.scheduler = cosine_scheduler(
+                    self.optimizer,
+                    initial_lr=self.trainer_config["max_lr"],
+                    num_epochs=self.trainer_config["n_epochs"],
+                    num_cycles=50,
+                )
 
-        if self.trainer_config["lr_scheduler"] == "cosine":
-            self.scheduler = cosine_scheduler(
-                self.optimizer,
-                initial_lr=self.trainer_config["max_lr"],
-                num_epochs=self.trainer_config["n_epochs"],
-                num_cycles=50,
-            )
-
-        elif self.trainer_config["lr_scheduler"] == "cyclic":
-            self.scheduler = lr_scheduler.CyclicLR(
-                self.optimizer,
-                base_lr=self.trainer_config["min_lr"],
-                max_lr=self.trainer_config["max_lr"],
-                step_size_up=5,
-                mode="exp_range",
-                gamma=0.85,
-                last_epoch=-1,
-            )
-        elif self.trainer_config["lr_scheduler"] == "step":
-            self.scheduler = lr_scheduler.StepLR(self.optimizer, step_size=3, gamma=0.1)
-        elif self.trainer_config["lr_scheduler"] == "no":
-            self.scheduler = None
-        else:
-            raise NotImplementedError("Scheduler is not implemented yet.")
+            elif self.trainer_config["lr_scheduler"] == "cyclic":
+                self.scheduler = lr_scheduler.CyclicLR(
+                    self.optimizer,
+                    base_lr=self.trainer_config["min_lr"],
+                    max_lr=self.trainer_config["max_lr"],
+                    step_size_up=5,
+                    mode="exp_range",
+                    gamma=0.85,
+                    last_epoch=-1,
+                )
+            elif self.trainer_config["lr_scheduler"] == "step":
+                self.scheduler = lr_scheduler.StepLR(
+                    self.optimizer, step_size=3, gamma=0.1
+                )
+            elif self.trainer_config["lr_scheduler"] == "no":
+                self.scheduler = None
+            else:
+                raise NotImplementedError("Scheduler is not implemented yet.")
 
     def _init_criterion(self):
         self.criterion = torch.nn.CrossEntropyLoss()
@@ -155,6 +157,40 @@ class Trainer:
                     self.model.state_dict(),
                     os.path.join(path2save, ckpt_name),
                 )
+        if self.trainer_config.onnx.get("save", False):
+            onnx_model_name = (
+                f"model_{self.config.model.model_name}" + f"_{self.exp}_{epoch+1}.onnx"
+            )
+            path2save_onnx = Path(self.trainer_config.onnx.get("path2save", "./onnx"))
+            path2save_onnx.mkdir(parents=True, exist_ok=True)
+            path2save_onnx = path2save_onnx / onnx_model_name
+
+            logger.info(f"Saving model onnx {epoch + 1} --> {path2save_onnx}")
+
+            for data, _ in train_loader:
+                break
+            print(data.shape)
+            with torch.no_grad():
+                torch.onnx.export(
+                    self.model,
+                    data.to(self.device),
+                    path2save_onnx,
+                    export_params=True,
+                    opset_version=15,
+                    input_names=["INPUTS"],
+                    output_names=["OUTPUTS"],
+                    dynamic_axes={
+                        "INPUTS": {0: "BATCH_SIZE"},
+                        "OUTPUTS": {0: "BATCH_SIZE"},
+                    },
+                )
+
+            logger.info("Saving model weights to the same folder")
+            path2save_ckpt = path2save_onnx.with_suffix(".pth")
+            torch.save(
+                self.model.state_dict(),
+                path2save_ckpt,
+            )
 
         mlflow.pytorch.log_model(self.model, path2save)
 
@@ -268,6 +304,8 @@ def train(
 
     n_classes = len(np.unique(train_val_labels))
 
+    print(f"The number of classes to classify: {n_classes}")
+    print(OmegaConf.to_yaml(config))
     trainer = Trainer(config=config, n_classes=n_classes)
 
     train_dataset = CarsDataset(train_files, mode="train")
