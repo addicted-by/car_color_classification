@@ -1,0 +1,29 @@
+name: "onnx-resnet"
+platform: "onnxruntime_onnx"
+max_batch_size: 8
+
+
+input [
+    {
+        name: "INPUTS"
+        data_type: TYPE_FP32
+        dims: [ 3,224,224 ]
+    }
+]
+
+output [
+    {
+        name: "OUTPUTS"
+        data_type: TYPE_FP32
+        dims: [ 11 ]
+    }
+]
+
+instance_group [
+    {
+        count: 1
+        kind: KIND_CPU
+    }
+]
+
+dynamic_batching: { }
